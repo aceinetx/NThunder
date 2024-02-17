@@ -14,6 +14,7 @@ struct FsEntry {
     absolute_path: String,
     is_folder: bool,
     reversed: bool,
+    hide: bool,
 }
 
 fn get_slash() -> String {
@@ -166,20 +167,27 @@ fn fs_get_files(path: Vec<String>) -> Vec<FsEntry> {
     let paths_result = fs::read_dir(path_str);
     if paths_result.is_err(){ // If error occured accessing the folder
         let mut entries_b: Vec<FsEntry> = vec![];
-        entries_b.push(FsEntry{ name: String::from(".."), absolute_path: String::from(".."), is_folder: true, reversed: true });
-        entries_b.push(FsEntry{ name: String::from("(No access to this folder)"), absolute_path: String::from("(No access to this folder)"), is_folder: true, reversed: true });
+        entries_b.push(FsEntry{ hide: false, name: String::from(".."), absolute_path: String::from(".."), is_folder: true, reversed: true });
+        entries_b.push(FsEntry{ hide: false, name: String::from("(No access to this folder)"), absolute_path: String::from("(No access to this folder)"), is_folder: true, reversed: true });
         return entries_b;
     }
     let paths = paths_result.unwrap();
 
 
 
-    entries.push(FsEntry{ name: String::from(".."), absolute_path: String::from(".."), is_folder: true, reversed: true });
+    entries.push(FsEntry{ hide: false, name: String::from(".."), absolute_path: String::from(".."), is_folder: true, reversed: true });
     for path in paths {
         let raw_path = path.unwrap().path();
         let entry_path = raw_path.to_str().unwrap().to_string().replace(&(get_slash()+get_slash().as_str()), get_slash().as_str());
-        let is_file = metadata(entry_path.clone()).unwrap().is_file();
-        entries.push(FsEntry{ name: get_last_from_absolute_path(entry_path.clone()), absolute_path: entry_path.clone(), is_folder: !is_file, reversed: false });
+        let is_file_res = metadata(entry_path.clone());
+        let mut is_file = true;
+        let mut hide_file = false;
+        if is_file_res.is_ok(){
+            is_file = is_file_res.unwrap().is_file();
+        } else {
+            hide_file = true;
+        }
+        entries.push(FsEntry{ hide: hide_file, name: get_last_from_absolute_path(entry_path.clone()), absolute_path: entry_path.clone(), is_folder: !is_file, reversed: false });
     }
 
     entries = fs_sort_entries(entries);
@@ -250,7 +258,7 @@ fn main() {
         }
 
         // Aimed entry - Entry that mouse pointer is pointing to
-        let mut aimed_entry = FsEntry {name: String::new(), is_folder: false, absolute_path: String::new(), reversed: true };
+        let mut aimed_entry = FsEntry { hide: false, name: String::new(), is_folder: false, absolute_path: String::new(), reversed: true };
         let mut no_item_aimed = true;
 
         if offset < 0 {
@@ -270,6 +278,9 @@ fn main() {
         w.attroff(ColorPair(1));
 
         for entry in &mut files[offset as usize..]{
+            if entry.hide == true {
+                continue;
+            }
             if entry.is_folder {
                 w.attron(ColorPair(2));
             }
