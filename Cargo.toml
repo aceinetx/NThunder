@@ -1,0 +1,11 @@
+[package]
+name = "nthunder"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde_json = "1.0.113"
+
+[dependencies.pancurses]
+version = "0.17"
+features = ["win32"] # This feature is needed to app not open in another window instead of terminal
