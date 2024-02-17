@@ -3,6 +3,7 @@ use pancurses::*;
 use std::fs;
 use std::fs::{metadata};
 use serde_json::Value;
+use std::env;
 
 static TITLE_SIZE: i32 = 3;
 
@@ -15,6 +16,17 @@ struct FsEntry {
     reversed: bool,
 }
 
+fn get_slash() -> String {
+    let os_type = env::consts::OS;
+    if os_type == "windows" {
+        return String::from("\\");
+    }
+    return String::from("/");
+}
+
+fn get_slash_char() -> char {
+    get_slash().chars().collect::<Vec<_>>()[0]
+}
 
 // File types definitions in json bcuz I was lazy
 static FILE_TYPES: &str = r#"
@@ -103,21 +115,21 @@ fn get_file_extension_definition(extension: String) -> String{
 }
 
 fn fs_get_path_from_vector(path: Vec<String>) -> String{
-    let mut path_str = String::from("\\");
+    let mut path_str = String::from(get_slash().as_str());
 
     for path_entry in path {
         path_str.push_str(path_entry.as_str());
-        path_str.push_str("\\");
+        path_str.push_str(get_slash().as_str());
     }
 
-    path_str.push_str("\\");
+    path_str.push_str(get_slash().as_str());
 
     // Check if path_str is only "\", if it is make it empty
     if path_str.len() == 2 {
         path_str.pop();
     }
 
-    path_str.replace("\\\\", "\\")
+    path_str.replace(&(get_slash()+get_slash().as_str()), get_slash().as_str())
 }
 
 fn fs_find_file(entries: Vec<FsEntry>) -> usize {
@@ -165,7 +177,7 @@ fn fs_get_files(path: Vec<String>) -> Vec<FsEntry> {
     entries.push(FsEntry{ name: String::from(".."), absolute_path: String::from(".."), is_folder: true, reversed: true });
     for path in paths {
         let raw_path = path.unwrap().path();
-        let entry_path = raw_path.to_str().unwrap().to_string().replace("\\\\", "\\");
+        let entry_path = raw_path.to_str().unwrap().to_string().replace(&(get_slash()+get_slash().as_str()), get_slash().as_str());
         let is_file = metadata(entry_path.clone()).unwrap().is_file();
         entries.push(FsEntry{ name: get_last_from_absolute_path(entry_path.clone()), absolute_path: entry_path.clone(), is_folder: !is_file, reversed: false });
     }
@@ -179,7 +191,7 @@ fn get_last_from_absolute_path(path: String) -> String {
     let mut last = String::new();
     // Iterate through reversed string
     for chr in path.chars().rev().collect::<String>().chars().collect::<Vec<_>>(){
-        if chr == '\\' { break };
+        if chr == get_slash_char() { break };
         last.push(chr);
     }
 
@@ -188,6 +200,10 @@ fn get_last_from_absolute_path(path: String) -> String {
 }
 
 fn main() {
+
+    let mut no_mouse_mode = false;
+    let mut fake_mouse_x = 0;
+    let mut fake_mouse_y = 0;
 
     let mut path: Vec<String> = vec![];
     let mut offset = 0;
@@ -220,6 +236,11 @@ fn main() {
         let mut mouse = MEVENT{ x: 0, y: 0, z: 0, bstate: 0, id: -1 }; // Make empty mouse if not supported
         if mouse_result.is_ok() {
             mouse = mouse_result.unwrap();
+        }
+
+        if no_mouse_mode == true {
+            mouse.x = fake_mouse_x;
+            mouse.y = fake_mouse_y;
         }
 
         let mut entries_index = TITLE_SIZE;
@@ -287,6 +308,10 @@ fn main() {
         }
         w.mvprintw(1, 0, "----------------------------------------- NThunder");
 
+        if no_mouse_mode == true {
+            w.mvprintw(fake_mouse_y, fake_mouse_x, "@");
+        }
+
         match w.getch() {
 
             Some(Input::KeyDown) => {
@@ -327,6 +352,34 @@ fn main() {
                 }
             }
 
+            Some(Input::Character('x')) => {
+                if no_item_aimed == false {
+                    if aimed_entry.is_folder == false { // If file we can just skip everything
+                        continue;
+                    }
+                    offset = 0;
+                    if aimed_entry.name != ".." && (aimed_entry.name != "(No access to this folder)") {
+                        path.push(aimed_entry.name.clone());
+                    } else {
+                        if aimed_entry.name == ".." {
+                            if path.len() > 0 {
+                                path.pop();
+                            }
+                        }
+                    }
+                } else {
+                    // Offset buttons
+                    if mouse.x == w.get_max_x()-1 && (mouse.y == w.get_max_y()-1){
+                        offset += 1;
+                    }
+                    if mouse.x == w.get_max_x()-1 && (mouse.y == w.get_max_y()-2){
+                        if offset >= 1 {
+                            offset -= 1;
+                        }
+                    }
+                }
+            }
+
             Some(Input::Character(c)) => {
                 if c == 'q'{
                     break;
@@ -336,6 +389,22 @@ fn main() {
                     }
                 } else if c == 's'{
                     offset += 1;
+                } else if c == 'k'{
+                    fake_mouse_y -= 1;
+                    if fake_mouse_y < 0{
+                        fake_mouse_y = 0;
+                    }
+                } else if c == 'j'{
+                    fake_mouse_y += 1;
+                } else if c == 'h'{
+                    fake_mouse_x -= 1;
+                    if fake_mouse_x < 0{
+                        fake_mouse_x = 0;
+                    }
+                } else if c == 'l'{
+                    fake_mouse_x += 1;
+                } else if c == 'z'{
+                    no_mouse_mode = !no_mouse_mode;
                 }
             },
 
