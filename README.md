@@ -5,3 +5,4 @@ Simple file explorer using Rust and Pancurses (my first rust project)
 To scroll use W/S or with arrow up/arrow down<br>
 To quit press Q
 No-mouse cursor mode - Z
+No-mouse cursor move - HJKL
